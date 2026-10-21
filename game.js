@@ -1,0 +1,40 @@
+'use strict';
+const KEY = 'kevins-cookie-tycoon-v1';
+const $ = id => document.getElementById(id);
+const money = n => new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(n);
+const events = [
+ {title:'A lovely day for cookies',description:'Steady foot traffic. A good day to find your rhythm.',factor:1},
+ {title:'Rain on the window',description:'A quieter street today. Plan a smaller batch.',factor:.75},
+ {title:'The neighborhood is buzzing',description:'More people out and about means more cookie cravings.',factor:1.25},
+ {title:'Market day on Main Street',description:'The local market brings a hungry crowd to your door.',factor:1.45},
+ {title:'A slow and cozy afternoon',description:'Foot traffic is light. Keep an eye on your costs.',factor:.85}
+];
+let state;
+function fresh(){return {cash:100,history:[],event:0};}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s && Number.isFinite(s.cash)&&s.cash>=0&&Array.isArray(s.history)&&s.history.length<=30&&Number.isInteger(s.event)&&events[s.event]&&s.history.every(r=>['sold','quantity','price','revenue','expenses','profit','cash','day','ads'].every(k=>Number.isFinite(r[k]))))return s;}catch{}return fresh();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch{}}
+function inputs(){return {quantity:Number($('quantity').value),price:Number($('price').value),ads:Number($('advertising').value)};}
+function valid(p){return Number.isInteger(p.quantity)&&p.quantity>=0&&p.quantity<=10000&&p.price>=.25&&p.price<=20&&Math.abs(p.price*4-Math.round(p.price*4))<1e-8&&Number.isInteger(p.ads)&&p.ads>=0&&p.ads<=1000000;}
+function costs(p){return p.quantity*.5+p.ads+5;}
+function finished(){return state.history.length>=30||state.cash<5;}
+function updateBudget(){const p=inputs(),cost=costs(p);$('ingredients').textContent=money(p.quantity*.5);$('ad-cost').textContent=money(p.ads);$('investment').textContent=money(cost);$('validation').textContent=finished()?'':!valid(p)?'Enter whole cookies, whole advertising dollars, and a price in $0.25 steps.':cost>state.cash?'This batch is over budget. Reduce baking or advertising.':'';$('bake').disabled=finished()||!valid(p)||cost>state.cash;}
+function customerScene(r, animate){
+ const count=Math.min(24,Math.ceil(r.sold/5));
+ const colors=['#cc795b','#739886','#d5aa56','#8588ad','#b57691'];
+ const people=Array.from({length:count},(_,i)=>{
+  const cookies=Math.floor(r.sold/count)+(i<r.sold%count?1:0);
+  return `<div class="customer" style="--delay:${(i*.22).toFixed(2)}s;--shirt:${colors[i%colors.length]};--skin:${['#e8b58e','#b97c56','#f0cfaa'][i%3]};--lane:${i%3*5}px"><div class="customer-body"><span class="customer-head"></span><span class="customer-shirt"></span><span class="customer-legs"></span><span class="cookie-bag">🍪<b>×${cookies}</b></span><span class="customer-thanks">♥</span></div></div>`;
+ }).join('');
+ return `<div class="shop-scene ${animate?'is-playing':'settled'}" aria-hidden="true"><div class="scene-sun">☀</div><div class="shop-building"><div class="shop-sign">KEVIN’S COOKIES</div><div class="shop-awning"></div><div class="shop-window">🍪 🍪 🍪</div><div class="shop-door"></div></div><div class="shop-path"></div><div class="customers">${people}</div>${!count?'<span class="quiet-shop">A quiet day at the shop…</span>':''}</div><p class="crowd-caption">${r.sold?`${count} animated customer${count===1?'':'s'} · ${r.sold} cookies sold${count?' · Each bag shows its cookie count.':''}`:'No sales today. Try a new price or a little advertising.'}</p>`;
+}
+function report(r, animate=false){$('empty-results').hidden=true;$('report').hidden=false;$('results-title').textContent=`Day ${r.day}, fresh from the oven.`;const sign=r.profit<0?'negative':'positive';$('report').innerHTML=customerScene(r,animate)+`<div class="report-hero"><p>TODAY’S PROFIT</p><strong class="${sign}">${money(r.profit)}</strong><span>${r.sold} happy cookie moments</span></div><div class="report-row"><span>Cookies sold</span><strong>${r.sold} / ${r.quantity}</strong></div><div class="report-row"><span>Revenue</span><strong>${money(r.revenue)}</strong></div><div class="report-row"><span>Expenses</span><strong>${money(r.expenses)}</strong></div><div class="report-row"><span>Ingredients / advertising / shop</span><strong>${money(r.quantity*.5)} / ${money(r.ads)} / $5.00</strong></div><div class="report-row"><span>Unsold cookies</span><strong>${r.quantity-r.sold}</strong></div><div class="report-row"><span>Remaining cash</span><strong>${money(r.cash)}</strong></div><p class="report-note">${r.sold===r.quantity&&r.quantity>0?'Sold out! A larger batch could help you capture more demand.':r.sold<r.quantity?'A few crumbs left behind. Try a smaller batch, a lower price, or a little more buzz.':'Even a quiet day costs $5 to keep the shop open.'}</p>`;}
+function render(animate=false){const day=Math.min(state.history.length+1,30),total=state.history.reduce((n,r)=>n+r.profit,0);$('cash').textContent=money(state.cash);$('day').innerHTML=`Day ${day} <small>/ 30</small>`;$('total-profit').textContent=money(total);$('total-profit').className=total<0?'negative':'';$('total-sold').innerHTML=`${state.history.reduce((n,r)=>n+r.sold,0)} <small>and counting</small>`;$('day-pill').textContent=`DAY ${String(day).padStart(2,'0')}`;$('event-title').textContent=events[state.event].title;$('event-description').textContent=events[state.event].description;
+$('ledger').innerHTML=state.history.length?[...state.history].reverse().map(r=>`<tr><td>${String(r.day).padStart(2,'0')}</td><td>${r.quantity} / ${r.sold}</td><td>${money(r.price)}</td><td>${money(r.revenue)}</td><td>${money(r.expenses)}</td><td class="${r.profit<0?'negative':'positive'}">${money(r.profit)}</td><td>${money(r.cash)}</td></tr>`).join(''):'<tr><td colspan="7" class="ledger-empty">Your story starts with the first batch.</td></tr>';
+if(state.history.length)report(state.history.at(-1),animate);else{$('empty-results').hidden=false;$('report').hidden=true;$('results-title').textContent='Your day, at a glance.';}
+const done=finished();$('ending').hidden=!done;$('plan-title').textContent=done?'The oven’s off.':'Let’s open up shop.';for(const id of ['quantity','price','advertising'])$(id).disabled=done;
+if(done){const complete=state.history.length===30;$('ending').innerHTML=`<h3>${complete?'Thirty days. One sweet journey.':'Time for a fresh start.'}</h3><p>${complete?`You finished with <strong>${money(state.cash)}</strong> and ${money(total)} in total profit. ${total>0?'You built a profitable neighborhood cookie shop!':'Every baker learns a little with each batch.'}`:'You have less than $5, so you can’t cover another day’s shop costs. Your ledger tells the story—try again with a smaller batch or a new price.'}</p><button class="primary" id="play-again">Bake a new beginning →</button>`;$('play-again').onclick=reset;}$('bake').innerHTML=done?'Shop closed':'Bake & open shop <span>→</span>';updateBudget();}
+function reset(){state=fresh();save();$('quantity').value=80;$('price').value='2.50';$('advertising').value=10;$('reset-dialog').close();render();}
+$('plan-form').addEventListener('input',updateBudget);
+$('plan-form').addEventListener('submit',e=>{e.preventDefault();const p=inputs();if(finished()||!valid(p)||costs(p)>state.cash)return;const day=state.history.length+1;const demand=Math.max(0,Math.round((58+Math.sqrt(p.ads)*11)*events[state.event].factor*Math.exp(-.65*(p.price-2.5))*(.88+Math.random()*.24)));const sold=Math.min(p.quantity,demand),revenue=Math.round(sold*p.price*100)/100,expenses=costs(p),profit=Math.round((revenue-expenses)*100)/100;state.cash=Math.round((state.cash+profit)*100)/100;state.history.push({...p,day,sold,revenue,expenses,profit,cash:state.cash});state.event=Math.floor(Math.random()*events.length);save();render(true);if(matchMedia('(max-width:600px)').matches)$('results-title').scrollIntoView({behavior:'smooth',block:'start'});});
+$('restart').onclick=()=>$('reset-dialog').showModal();$('cancel-reset').onclick=()=>$('reset-dialog').close();$('confirm-reset').onclick=reset;
+state=load();render();
