@@ -36,11 +36,17 @@ function costs(p){return Math.round((batchCost(p.batches)+p.ads+5)*100)/100;}
 function finished(){return state.history.length>=30||state.cash<5;}
 function updateBudget(){const p=inputs(),cost=costs(p);$('ingredients').textContent=money(batchCost(p.batches));$('ad-cost').textContent=money(p.ads);$('investment').textContent=money(cost);$('validation').textContent=finished()?'':!valid(p)?'Enter whole cookies, whole advertising dollars, and a price in $0.25 steps.':cost>state.cash?'This batch is over budget. Reduce baking or advertising.':'';$('bake').disabled=finished()||!valid(p)||cost>state.cash;}
 function customerScene(r, animate){
- const count=Math.min(24,Math.ceil(r.sold/5));
+ const soldBatches=batchesFor(r).filter(b=>b.sold>0);
+ const count=Math.min(24,Math.max(soldBatches.length,Math.ceil(r.sold/5)));
+ const groups=soldBatches.map(b=>({...b,customers:1}));
+ for(let assigned=groups.length;assigned<count;assigned++){
+  const next=groups.filter(b=>b.customers<b.sold).sort((a,b)=>b.sold/b.customers-a.sold/a.customers)[0];
+  if(next)next.customers++;
+ }
+ const orders=groups.flatMap(b=>Array.from({length:b.customers},(_,i)=>({id:b.id,cookies:Math.floor(b.sold/b.customers)+(i<b.sold%b.customers?1:0)})));
  const colors=['#cc795b','#739886','#d5aa56','#8588ad','#b57691'];
- const people=Array.from({length:count},(_,i)=>{
-  const cookies=Math.floor(r.sold/count)+(i<r.sold%count?1:0);
-  return `<div class="customer" style="--delay:${(i*.22).toFixed(2)}s;--shirt:${colors[i%colors.length]};--skin:${['#e8b58e','#b97c56','#f0cfaa'][i%3]};--lane:${i%3*5}px"><div class="customer-body"><span class="customer-head"></span><span class="customer-shirt"></span><span class="customer-legs"></span><span class="cookie-bag">🍪<b>×${cookies}</b></span><span class="customer-thanks">♥</span></div></div>`;
+ const people=orders.map(({id,cookies},i)=>{
+  return `<div class="customer" style="--delay:${(i*.22).toFixed(2)}s;--shirt:${colors[i%colors.length]};--skin:${['#e8b58e','#b97c56','#f0cfaa'][i%3]};--lane:${i%3*5}px"><div class="customer-body"><span class="customer-head"></span><span class="customer-shirt"></span><span class="customer-legs"></span><span class="cookie-bag cookie-box-${id}" title="${variety(id).name}">🍪<b>×${cookies}</b></span><span class="customer-thanks">♥</span></div></div>`;
  }).join('');
  return `<div class="shop-scene ${animate?'is-playing':'settled'}" aria-hidden="true"><div class="scene-sun">☀</div><div class="shop-building"><div class="shop-sign">KEVIN’S COOKIES</div><div class="shop-awning"></div><div class="shop-window">🍪 🍪 🍪</div><div class="shop-door"></div></div><div class="shop-path"></div><div class="customers">${people}</div>${!count?'<span class="quiet-shop">A quiet day at the shop…</span>':''}</div><p class="crowd-caption">${r.sold?`${count} animated customer${count===1?'':'s'} · ${r.sold} cookies sold${count?' · Each bag shows its cookie count.':''}`:'No sales today. Try a new price or a little advertising.'}</p>`;
 }
